@@ -30,9 +30,13 @@ TILE_TYPE = {
 }
 
 WORLD_SIZE = {
-    'pocket': (65, 65),
-    'small': (129, 129),
-    'medium': (257, 257),
-    'large': (513, 513),
-    'huge': (1025, 1025)
+    'small': (65, 65),
+    'medium': (129, 129),
+    'large': (257, 257)
+}
+
+SCALE_LIMITS = {
+    'small': 0.5,
+    'medium': 0.3,
+    'large': 0.2,
 }
