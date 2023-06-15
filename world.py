@@ -6,44 +6,35 @@ from support import import_folder, import_folder_dict
 
 class World():
     def __init__(self) -> None:
+        self.world_size = input('Enter world size: ')
         self.display_surface = pygame.display.get_surface()
-        self.all_sprites = CameraGroup()
+        self.tile_sprites = pygame.sprite.Group()
+        self.all_sprites = CameraGroup(self.tile_sprites, self.world_size)
 
         # terrain
-        # self.grass_surf = []
-        # self.sand_surf = []
-        # self.shore_surf = []
-        # self.water_surf = []
         self.terrain = {}
 
         # noise parameters
         self.seed = random.randint(0, 100)
         self.noise = OpenSimplex(self.seed)
         self.noise_map = []
-
+        self.civ = None
         self.setup()
 
     def setup(self):
         
         for tile_id, tile_name in TILE_TYPE.items():
-            self.terrain[tile_name] = import_folder(f'sprites/{tile_name}')
-
-        self.generate_world([20000, 20000])
+            self.terrain[tile_name] = import_folder(f'sprites/terrain/{tile_name}')
+        
+        self.generate_world(WORLD_SIZE[self.world_size])
         self.all_sprites.update_world()
-
-    
-    def draw_world_surf(self):
-        for layer in LAYERS.values():
-            for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery): #sorted by y-axis
-                if sprite.z == layer:
-                    self.world_surf.blit(sprite.image, sprite.rect)
 
     def generate_world(self, world_size):
 
         width = world_size[0]
         height = world_size[1]
-        scale = 80
-        h_tiles, v_tiles = m.ceil(width / TILE_SIZE), m.ceil(height / TILE_SIZE)
+        scale = 64
+        h_tiles, v_tiles = width, height
         self.grid = [[[] for col in range (h_tiles)] for row in range(v_tiles)]
 
         noise = OpenSimplex(random.randint(0, 100))
@@ -68,13 +59,16 @@ class World():
                     
                 surf = random.choice(self.terrain[TILE_TYPE[tile_type]])
 
-                tile = Tile(tile_type, (col * TILE_SIZE, row * TILE_SIZE), surf, self.all_sprites)
+                tile = Tile(tile_type, (col * TILE_SIZE, row * TILE_SIZE), surf, self.tile_sprites)
                 self.grid[row][col].append(tile)
+        #self.civ = Civilian(pygame.math.Vector2(500,500), self.all_sprites)
 
     def run(self, dt):
         self.display_surface.fill('white')
         self.all_sprites.draw()
         self.input()
+        #self.civ.update(dt)
+        self.all_sprites.render_sprites()
 
     def input(self):
         for event in pygame.event.get():
@@ -90,15 +84,17 @@ class World():
                     self.all_sprites.scale_world()
 
 class CameraGroup(pygame.sprite.Group):
-    def __init__(self):
+    def __init__(self, tile_sprites, world_size):
         super().__init__()
-        self.world_surf = pygame.Surface((20000, 20000))
+        self.world_width, self.world_height = WORLD_SIZE[world_size][0] * 64, WORLD_SIZE[world_size][1] * 64
+        self.world_surf = pygame.Surface((self.world_width, self.world_height))
         self.world_rect = self.world_surf.get_rect()
         self.scaled_world = self.world_surf
         self.display_surface = pygame.display.get_surface()
         self.offset = pygame.math.Vector2()
         self.scale = 1.0
         self.cam_step = 20
+        self.tile_sprites = tile_sprites
     
     def draw(self):
         mouse = pygame.mouse.get_pos()
@@ -121,13 +117,22 @@ class CameraGroup(pygame.sprite.Group):
 
     def update_world(self):
         for layer in LAYERS.values():
-            for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery): #sorted by y-axis
+            for sprite in sorted(self.tile_sprites, key = lambda sprite: sprite.rect.centery): #sorted by y-axis
                 if sprite.z == layer:
                     self.world_surf.blit(sprite.image, sprite.rect)
+                    
+        pygame.image.save(self.world_surf, "world_surf.png")
+        self.world_image = pygame.image.load("world_surf.png")
         pygame.display.flip()
     
-    def scale_world(self):
-        width = self.world_surf.get_width()
-        height = self.world_surf.get_height()
+    def render_sprites(self):
+        for layer in LAYERS.values():
+            for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
+                if sprite.z == layer:
+                    self.world.blit(sprite.image, sprite.rect.move(self.offset))
+        pygame.display.flip()
 
-        self.scaled_world = pygame.transform.scale(self.world_surf, (int(width * self.scale), int(height * self.scale)))
+    def scale_world(self):
+        width = self.world_image.get_width()
+        height = self.world_image.get_height()
+        self.scaled_world = pygame.transform.scale(self.world_image, (int(width * self.scale), int(height * self.scale)))
