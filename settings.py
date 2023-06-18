@@ -5,11 +5,12 @@ TILE_SIZE = 64
 
 LAYERS = {
     'water': 0,
-	'sand': 1,
-	'grass' : 2,
-	'soil' : 3,
-	'water soil' : 4,
-	'cliff' : 5,
+    'shallow_water': 1,
+	'sand': 2,
+	'grass' : 3,
+	'soil' : 4,
+	'water soil' : 5,
+	'cliff' : 6,
 	'main' : 7,
 	'house top' : 8,
 	'fruit' : 9,
@@ -38,5 +39,12 @@ WORLD_SIZE = {
 SCALE_LIMITS = {
     'small': 0.5,
     'medium': 0.3,
-    'large': 0.2,
+    'large': 0.2
+}
+
+TILE_MAPPING = {
+    (0.5, 0.8): 3,   # shore
+    (0.45, 0.5): 2,  # sand
+    (-0.7, 0.45): 0, # grass
+    (-1, -0.7): 4    # cliff
 }

@@ -1,7 +1,7 @@
 import pygame, random, math as m
 from opensimplex import OpenSimplex
 from settings import *
-from sprites import Tile
+from sprites import Tile, Civilian
 from support import import_folder, import_folder_dict
 
 class World():
@@ -48,27 +48,24 @@ class World():
                 noise_value = noise.noise2(sample_x, sample_y)
                 tile_type = 3  # water by default
 
-                if noise_value > 0.5 and noise_value <= 0.8:
-                    tile_type = 3 # shore
-                elif noise_value > 0.45 and noise_value <= 0.5:
-                    tile_type = 2  # sand
-                elif noise_value > -0.7 and noise_value <= 0.45:
-                    tile_type = 0  # grass
-                elif noise_value >= -1 and noise_value <= -0.7:
-                    tile_type = 4 #cliff
+                for value_range, tile_code in TILE_MAPPING.items():
+                    if value_range[0] < noise_value <= value_range[1]:
+                        tile_type = tile_code
+                        break
                     
                 surf = random.choice(self.terrain[TILE_TYPE[tile_type]])
 
-                tile = Tile(tile_type, (col * TILE_SIZE, row * TILE_SIZE), surf, self.all_sprites)
+                tile = Tile(tile_type, (col * TILE_SIZE, row * TILE_SIZE), surf, self.tile_sprites, LAYERS[TILE_TYPE[tile_type]])
                 self.grid[row][col] = tile
-        #self.civ = Civilian(pygame.math.Vector2(500,500), self.all_sprites)
+        self.civ = Civilian(pygame.math.Vector2(500,500), self.all_sprites)
 
     def run(self, dt):
         self.display_surface.fill('white')
+        self.all_sprites.draw_world()
         self.all_sprites.draw()
         self.input()
-        #self.civ.update(dt)
-        #self.all_sprites.render_sprites()
+        self.civ.update(dt, self.all_sprites.scale)
+        # self.all_sprites.render_sprites()
 
     def input(self):
         self.scale_map()
@@ -118,30 +115,43 @@ class CameraGroup(pygame.sprite.Group):
         self.offset.y = min(self.offset.y, self.scaled_world.get_height() - SCREEN_HEIGHT)
         self.display_surface.blit(self.scaled_world, self.world_rect, self.world_rect.move(self.offset))
 
+
     def update_world(self):
-        self.world_surf.fill((0, 0, 0))
         for layer in LAYERS.values():
-            for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery): #sorted by y-axis
+            for sprite in sorted(self.tile_sprites, key = lambda sprite: sprite.rect.centery): #sorted by y-axis
                 if sprite.z == layer:
                     self.world_surf.blit(sprite.image, sprite.rect)
                     
         pygame.image.save(self.world_surf, "world_surf.png")
         self.world_image = pygame.image.load("world_surf.png")
-        pygame.display.flip()
+        # pygame.display.flip()
     
-    def render_sprites(self):
+    def draw_world(self):
+        self.world_surf.fill((0,0,0))
+        self.world_surf.blit(self.world_image, self.world_image.get_rect())
+        
         for layer in LAYERS.values():
             for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
                 if sprite.z == layer:
-                    self.world.blit(sprite.image, sprite.rect.move(self.offset))
-        pygame.display.flip()
+                    # scaled_rect = sprite.rect.inflate(sprite.rect.width * (self.scale - 1), sprite.rect.height * (self.scale - 1))
+                    # scaled_rect.move_ip(self.offset)
+                    self.world_surf.blit(sprite.image, sprite.rect)
+
+    
+    # def render_sprites(self):
+    #     for layer in LAYERS.values():
+    #         for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
+    #             if sprite.z == layer:
+    #                 scaled_rect = sprite.rect.inflate(sprite.rect.width * (self.scale - 1), sprite.rect.height * (self.scale - 1))
+    #                 scaled_rect.move_ip(self.offset)
+    #                 self.scaled_world.blit(sprite.image, scaled_rect)
+    #     pygame.display.flip()
 
     def scale_world(self):
-        width = self.world_image.get_width()
-        height = self.world_image.get_height()
+        width = self.world_surf.get_width()
+        height = self.world_surf.get_height()
         
         if self.scale < SCALE_LIMITS[self.world_size]:
             self.scale = SCALE_LIMITS[self.world_size]
 
-        print(self.scale)
-        self.scaled_world = pygame.transform.scale(self.world_image, (int(width * self.scale), int(height * self.scale)))
+        self.scaled_world = pygame.transform.scale(self.world_surf, (int(width * self.scale), int(height * self.scale)))
