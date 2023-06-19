@@ -61,7 +61,7 @@ class World():
 
     def run(self, dt):
         self.display_surface.fill('white')
-        self.all_sprites.draw_world()
+        self.all_sprites.custom_draw()
         self.all_sprites.draw()
         self.input()
         self.civ.update(dt, self.all_sprites.scale)
@@ -69,6 +69,7 @@ class World():
 
     def input(self):
         self.scale_map()
+        # self.camera_movement()
 
     def scale_map(self):
         for event in pygame.event.get():
@@ -79,41 +80,67 @@ class World():
                     self.all_sprites.scale -= 0.1
                     if self.all_sprites.scale < 0.1:
                         self.all_sprites.scale = 0.1
-                        return
-                self.all_sprites.scale_world()
+
+    # def camera_movement(self):
+    #     keys = pygame.key.get_pressed()
+
+    #     if keys[pygame.K_w]:
+    #         self.all_sprites.offset.y -= self.all_sprites.cam_step * 10
+    #     elif keys[pygame.K_s]:
+    #         self.all_sprites.offset.y += self.all_sprites.cam_step * 10
+
+    #     if keys[pygame.K_a]:
+    #         self.all_sprites.offset.x -= self.all_sprites.cam_step * 10
+    #     elif keys[pygame.K_d]:
+    #         self.all_sprites.offset.x += self.all_sprites.cam_step * 10
 
 class CameraGroup(pygame.sprite.Group):
     def __init__(self, tile_sprites, world_size):
         super().__init__()
         self.world_size = world_size
         self.world_width, self.world_height = WORLD_SIZE[world_size][0] * 64, WORLD_SIZE[world_size][1] * 64
+
         self.world_surf = pygame.Surface((self.world_width, self.world_height))
         self.world_rect = self.world_surf.get_rect()
+
         self.scaled_world = self.world_surf
+        self.scaled_world_vector = pygame.math.Vector2(self.world_width, self.world_height)
         self.display_surface = pygame.display.get_surface()
+
         self.offset = pygame.math.Vector2()
         self.scale = 1.0
-        self.cam_step = 20
+        self.cam_step = 50
+        self.half_w = self.display_surface.get_size()[0] // 2
+        self.half_h = self.display_surface.get_size()[1] // 2
+
         self.tile_sprites = tile_sprites
     
     def draw(self):
+
+        if self.scale < SCALE_LIMITS[self.world_size]:
+            self.scale = SCALE_LIMITS[self.world_size]
+
         mouse = pygame.mouse.get_pos()
         if mouse[1] == 0:
-            self.offset.y -= self.cam_step
+            self.offset.y -= self.cam_step * self.scale
         elif mouse[1] >= SCREEN_HEIGHT - 1:
-            self.offset.y += self.cam_step
+            self.offset.y += self.cam_step * self.scale
 
         if mouse[0] == 0:
-            self.offset.x -= self.cam_step
+            self.offset.x -= self.cam_step * self.scale
         elif mouse[0] >= SCREEN_WIDTH - 1:
-            self.offset.x += self.cam_step
+            self.offset.x += self.cam_step * self.scale
 
         # limit camera movement to the world scale
         self.offset.x = max(0, self.offset.x)
         self.offset.y = max(0, self.offset.y)
         self.offset.x = min(self.offset.x, self.scaled_world.get_width() - SCREEN_WIDTH)
         self.offset.y = min(self.offset.y, self.scaled_world.get_height() - SCREEN_HEIGHT)
-        self.display_surface.blit(self.scaled_world, self.world_rect, self.world_rect.move(self.offset))
+
+        # scaled surface 
+        self.scaled_world = pygame.transform.scale(self.world_surf, self.scaled_world_vector * self.scale)
+        self.scaled_rect = self.scaled_world.get_rect()
+        self.display_surface.blit(self.scaled_world, self.scaled_rect, self.world_rect.move(self.offset))
 
 
     def update_world(self):
@@ -124,34 +151,15 @@ class CameraGroup(pygame.sprite.Group):
                     
         pygame.image.save(self.world_surf, "world_surf.png")
         self.world_image = pygame.image.load("world_surf.png")
-        # pygame.display.flip()
     
-    def draw_world(self):
+    def custom_draw(self):
         self.world_surf.fill((0,0,0))
+
+        # background image
         self.world_surf.blit(self.world_image, self.world_image.get_rect())
         
+        # for active elements
         for layer in LAYERS.values():
             for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
                 if sprite.z == layer:
-                    # scaled_rect = sprite.rect.inflate(sprite.rect.width * (self.scale - 1), sprite.rect.height * (self.scale - 1))
-                    # scaled_rect.move_ip(self.offset)
                     self.world_surf.blit(sprite.image, sprite.rect)
-
-    
-    # def render_sprites(self):
-    #     for layer in LAYERS.values():
-    #         for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
-    #             if sprite.z == layer:
-    #                 scaled_rect = sprite.rect.inflate(sprite.rect.width * (self.scale - 1), sprite.rect.height * (self.scale - 1))
-    #                 scaled_rect.move_ip(self.offset)
-    #                 self.scaled_world.blit(sprite.image, scaled_rect)
-    #     pygame.display.flip()
-
-    def scale_world(self):
-        width = self.world_surf.get_width()
-        height = self.world_surf.get_height()
-        
-        if self.scale < SCALE_LIMITS[self.world_size]:
-            self.scale = SCALE_LIMITS[self.world_size]
-
-        self.scaled_world = pygame.transform.scale(self.world_surf, (int(width * self.scale), int(height * self.scale)))
