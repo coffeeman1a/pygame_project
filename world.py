@@ -1,7 +1,7 @@
 import pygame, random, math as m
 from opensimplex import OpenSimplex
 from settings import *
-from sprites import Tile, Civilian
+from sprites import Tile
 from support import import_folder, import_folder_dict
 
 class World():
@@ -18,7 +18,6 @@ class World():
         self.seed = random.randint(0, 100)
         self.noise = OpenSimplex(self.seed)
         self.noise_map = []
-        self.civ = None
         self.setup()
 
     def setup(self):
@@ -57,14 +56,11 @@ class World():
 
                 tile = Tile(tile_type, (col * TILE_SIZE, row * TILE_SIZE), surf, self.tile_sprites, LAYERS[TILE_TYPE[tile_type]])
                 self.grid[row][col] = tile
-        self.civ = Civilian(pygame.math.Vector2(500,500), self.all_sprites)
 
     def run(self, dt):
         self.display_surface.fill('white')
-        self.all_sprites.custom_draw()
         self.all_sprites.draw()
         self.input()
-        self.civ.update(dt, self.all_sprites.scale)
         # self.all_sprites.render_sprites()
 
     def input(self):
@@ -74,12 +70,10 @@ class World():
     def scale_map(self):
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 4:  # scroll forward
-                    self.all_sprites.scale += 0.1
-                elif event.button == 5:  # scroll backward
-                    self.all_sprites.scale -= 0.1
-                    if self.all_sprites.scale < 0.1:
-                        self.all_sprites.scale = 0.1
+                if event.button == 4 or event.button == 5:
+                    scale_add = 0.1 if event.button == 4 else -0.1
+                    self.all_sprites.set_scale(scale_add)
+
 
     # def camera_movement(self):
     #     keys = pygame.key.get_pressed()
@@ -115,33 +109,40 @@ class CameraGroup(pygame.sprite.Group):
 
         self.tile_sprites = tile_sprites
     
-    def draw(self):
+    def set_scale(self, scale_add=0) -> None:
+        self.scale += scale_add
 
         if self.scale < SCALE_LIMITS[self.world_size]:
             self.scale = SCALE_LIMITS[self.world_size]
+        
+        # scaled surface 
+        self.scaled_world = pygame.transform.scale(self.world_surf, self.scaled_world_vector * self.scale)
+        self.scaled_rect = self.scaled_world.get_rect()
 
+    def draw(self):
         mouse = pygame.mouse.get_pos()
-        if mouse[1] == 0:
-            self.offset.y -= self.cam_step * self.scale
-        elif mouse[1] >= SCREEN_HEIGHT - 1:
-            self.offset.y += self.cam_step * self.scale
+        if mouse[1] == 0 or mouse[1] >= SCREEN_HEIGHT - 1 or \
+            mouse[0] == 0 or mouse[0] >= SCREEN_WIDTH - 1:
 
-        if mouse[0] == 0:
-            self.offset.x -= self.cam_step * self.scale
-        elif mouse[0] >= SCREEN_WIDTH - 1:
-            self.offset.x += self.cam_step * self.scale
+            if mouse[1] == 0:
+                self.offset.y -= self.cam_step * self.scale
+            elif mouse[1] >= SCREEN_HEIGHT - 1:
+                self.offset.y += self.cam_step * self.scale
 
-        # limit camera movement to the world scale
+            if mouse[0] == 0:
+                self.offset.x -= self.cam_step * self.scale
+            elif mouse[0] >= SCREEN_WIDTH - 1:
+                self.offset.x += self.cam_step * self.scale
+
+        self.limit_camera_movement()
+
+        self.display_surface.blit(self.scaled_world, self.scaled_rect, self.world_rect.move(self.offset))
+
+    def limit_camera_movement(self) -> None:
         self.offset.x = max(0, self.offset.x)
         self.offset.y = max(0, self.offset.y)
         self.offset.x = min(self.offset.x, self.scaled_world.get_width() - SCREEN_WIDTH)
         self.offset.y = min(self.offset.y, self.scaled_world.get_height() - SCREEN_HEIGHT)
-
-        # scaled surface 
-        self.scaled_world = pygame.transform.scale(self.world_surf, self.scaled_world_vector * self.scale)
-        self.scaled_rect = self.scaled_world.get_rect()
-        self.display_surface.blit(self.scaled_world, self.scaled_rect, self.world_rect.move(self.offset))
-
 
     def update_world(self):
         for layer in LAYERS.values():
@@ -151,15 +152,16 @@ class CameraGroup(pygame.sprite.Group):
                     
         pygame.image.save(self.world_surf, "world_surf.png")
         self.world_image = pygame.image.load("world_surf.png")
+        self.set_scale()
     
-    def custom_draw(self):
-        self.world_surf.fill((0,0,0))
+    # def custom_draw(self):
+    #     self.world_surf.fill((0,0,0))
 
-        # background image
-        self.world_surf.blit(self.world_image, self.world_image.get_rect())
+    #     # background image
+    #     self.world_surf.blit(self.world_image, self.world_image.get_rect())
         
-        # for active elements
-        for layer in LAYERS.values():
-            for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
-                if sprite.z == layer:
-                    self.world_surf.blit(sprite.image, sprite.rect)
+    #     # for active elements
+    #     for layer in LAYERS.values():
+    #         for sprite in sorted(self.sprites(), key = lambda sprite: sprite.rect.centery):
+    #             if sprite.z == layer:
+    #                 self.world_surf.blit(sprite.image, sprite.rect)
